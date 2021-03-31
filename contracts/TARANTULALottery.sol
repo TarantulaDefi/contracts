@@ -29,7 +29,7 @@ contract Lottery is OwnableUpgradeable {
     // Allocation for first/sencond/third reward
     uint8[3] public allocation;
     // The TOKEN to buy lottery
-    IBEP20 public lyptus;
+    IBEP20 public tarantula;
     // The Lottery NFT for tickets
     LotteryNFT public lotteryNFT;
     // adminAddress
@@ -80,7 +80,7 @@ contract Lottery is OwnableUpgradeable {
     }
 
     function initialize(
-        IBEP20 _lyptus,
+        IBEP20 _tarantula,
         LotteryNFT _lottery,
         uint256 _minPrice,
         uint8 _maxNumber,
@@ -88,7 +88,7 @@ contract Lottery is OwnableUpgradeable {
     ) external initializer {
         require(_adminAddress != address(0));
 
-        lyptus = _lyptus;
+        tarantula = _tarantula;
         lotteryNFT = _lottery;
         minPrice = _minPrice;
         maxNumber = _maxNumber;
@@ -240,7 +240,7 @@ contract Lottery is OwnableUpgradeable {
         require(!drawingPhase, 'drawing, can not buy now');
         require (_price >= minPrice, 'price must above minPrice');
         uint256 tokenId = _buySingleTicket(_price, _numbers);
-        lyptus.safeTransferFrom(address(msg.sender), address(this), _price);
+        tarantula.safeTransferFrom(address(msg.sender), address(this), _price);
         emit Buy(msg.sender, tokenId);
     }
 
@@ -252,7 +252,7 @@ contract Lottery is OwnableUpgradeable {
             _buySingleTicket(_price, _numbers[i]);
             totalPrice = totalPrice.add(_price);
         }
-        lyptus.safeTransferFrom(address(msg.sender), address(this), totalPrice);
+        tarantula.safeTransferFrom(address(msg.sender), address(this), totalPrice);
         emit MultiBuy(msg.sender, totalPrice);
     }
 
@@ -262,7 +262,7 @@ contract Lottery is OwnableUpgradeable {
         uint256 reward = getRewardView(_tokenId);
         lotteryNFT.claimReward(_tokenId);
         if(reward>0) {
-            safelyptusTransfer(address(msg.sender), reward);
+            safetarantulaTransfer(address(msg.sender), reward);
         }
         emit Claim(msg.sender, _tokenId, reward);
     }
@@ -279,7 +279,7 @@ contract Lottery is OwnableUpgradeable {
         }
         lotteryNFT.multiClaimReward(_tickets);
         if(totalReward>0) {
-            safelyptusTransfer(address(msg.sender), totalReward);
+            safetarantulaTransfer(address(msg.sender), totalReward);
         }
         emit MultiClaim(msg.sender, totalReward);
     }
@@ -367,13 +367,13 @@ contract Lottery is OwnableUpgradeable {
         return reward.div(1e12);
     }
 
-    // Safe lyptus transfer function, just in case if rounding error causes pool to not have enough lyptuss.
-    function safelyptusTransfer(address _to, uint256 _amount) internal {
-        uint256 lyptusBal = lyptus.balanceOf(address(this));
-        if (_amount > lyptusBal) {
-            lyptus.transfer(_to, lyptusBal);
+    // Safe tarantula transfer function, just in case if rounding error causes pool to not have enough TALs.
+    function safetarantulaTransfer(address _to, uint256 _amount) internal {
+        uint256 tarantulaBal = tarantula.balanceOf(address(this));
+        if (_amount > tarantulaBal) {
+            tarantula.transfer(_to, tarantulaBal);
         } else {
-            lyptus.transfer(_to, _amount);
+            tarantula.transfer(_to, _amount);
         }
     }
 
@@ -386,7 +386,7 @@ contract Lottery is OwnableUpgradeable {
 
     // Withdraw without caring about rewards. EMERGENCY ONLY.
     function adminWithdraw(uint256 _amount) external onlyAdmin {
-        lyptus.safeTransfer(address(msg.sender), _amount);
+        tarantula.safeTransfer(address(msg.sender), _amount);
         emit DevWithdraw(msg.sender, _amount);
     }
 

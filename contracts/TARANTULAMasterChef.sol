@@ -18,18 +18,17 @@ import "./SafeMath.sol";
 import "./IBEP20.sol";
 import "./SafeBEP20.sol";
 import "./Ownable.sol";
-import "./ReentrancyGuard.sol";
 
-import "./LYPTUSToken.sol";
+import "./TARANTULAToken.sol";
 
-// MasterChefV2 is the master of Lyptus. He can make Lyptus and he is a fair guy.
+// MasterChef is the master of TAL. He can make TAL and he is a fair guy.
 //
 // Note that it's ownable and the owner wields tremendous power. The ownership
-// will be transferred to a governance smart contract once LYPTUS is sufficiently
+// will be transferred to a governance smart contract once TAL is sufficiently
 // distributed and the community can show to govern itself.
 //
 // Have fun reading it. Hopefully it's bug-free. God bless.
-contract MasterChefV2 is Ownable, ReentrancyGuard {
+contract MasterChef is Ownable {
     using SafeMath for uint256;
     using SafeBEP20 for IBEP20;
 
@@ -38,13 +37,13 @@ contract MasterChefV2 is Ownable, ReentrancyGuard {
         uint256 amount;         // How many LP tokens the user has provided.
         uint256 rewardDebt;     // Reward debt. See explanation below.
         //
-        // We do some fancy math here. Basically, any point in time, the amount of LYPTUSs
+        // We do some fancy math here. Basically, any point in time, the amount of TALs
         // entitled to a user but is pending to be distributed is:
         //
-        //   pending reward = (user.amount * pool.accLyptusPerShare) - user.rewardDebt
+        //   pending reward = (user.amount * pool.accTarantulaPerShare) - user.rewardDebt
         //
         // Whenever a user deposits or withdraws LP tokens to a pool. Here's what happens:
-        //   1. The pool's `accLyptusPerShare` (and `lastRewardBlock`) gets updated.
+        //   1. The pool's `accTarantulaPerShare` (and `lastRewardBlock`) gets updated.
         //   2. User receives the pending reward sent to his/her address.
         //   3. User's `amount` gets updated.
         //   4. User's `rewardDebt` gets updated.
@@ -53,19 +52,19 @@ contract MasterChefV2 is Ownable, ReentrancyGuard {
     // Info of each pool.
     struct PoolInfo {
         IBEP20 lpToken;           // Address of LP token contract.
-        uint256 allocPoint;       // How many allocation points assigned to this pool. LYPTUSs to distribute per block.
-        uint256 lastRewardBlock;  // Last block number that LYPTUSs distribution occurs.
-        uint256 accLyptusPerShare;   // Accumulated LYPTUSs per share, times 1e12. See below.
+        uint256 allocPoint;       // How many allocation points assigned to this pool. TALs to distribute per block.
+        uint256 lastRewardBlock;  // Last block number that TALs distribution occurs.
+        uint256 accTarantulaPerShare;   // Accumulated TALs per share, times 1e12. See below.
         uint16 depositFeeBP;      // Deposit fee in basis points
     }
 
-    // The LYPTUS TOKEN!
-    LyptusToken public lyptus;
+    // The TAL TOKEN!
+    TarantulaToken public tarantula;
     // Dev address.
     address public devaddr;
-    // LYPTUS tokens created per block.
-    uint256 public lyptusPerBlock;
-    // Bonus muliplier for early lyptus makers.
+    // TAL tokens created per block.
+    uint256 public tarantulaPerBlock;
+    // Bonus muliplier for early tarantula makers.
     uint256 public constant BONUS_MULTIPLIER = 1;
     // Deposit Fee address
     address public feeAddress;
@@ -73,30 +72,27 @@ contract MasterChefV2 is Ownable, ReentrancyGuard {
     // Info of each pool.
     PoolInfo[] public poolInfo;
     // Info of each user that stakes LP tokens.
-    mapping(uint256 => mapping(address => UserInfo)) public userInfo;
+    mapping (uint256 => mapping (address => UserInfo)) public userInfo;
     // Total allocation points. Must be the sum of all allocation points in all pools.
     uint256 public totalAllocPoint = 0;
-    // The block number when LYPTUS mining starts.
+    // The block number when TAL mining starts.
     uint256 public startBlock;
 
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
     event EmergencyWithdraw(address indexed user, uint256 indexed pid, uint256 amount);
-    event SetFeeAddress(address indexed user, address indexed newAddress);
-    event SetDevAddress(address indexed user, address indexed newAddress);
-    event UpdateEmissionRate(address indexed user, uint256 goosePerBlock);
 
     constructor(
-        LyptusToken _lyptus,
+        TarantulaToken _tarantula,
         address _devaddr,
         address _feeAddress,
-        uint256 _lyptusPerBlock,
+        uint256 _tarantulaPerBlock,
         uint256 _startBlock
     ) public {
-        lyptus = _lyptus;
+        tarantula = _tarantula;
         devaddr = _devaddr;
         feeAddress = _feeAddress;
-        lyptusPerBlock = _lyptusPerBlock;
+        tarantulaPerBlock = _tarantulaPerBlock;
         startBlock = _startBlock;
     }
 
@@ -104,31 +100,25 @@ contract MasterChefV2 is Ownable, ReentrancyGuard {
         return poolInfo.length;
     }
 
-    mapping(IBEP20 => bool) public poolExistence;
-    modifier nonDuplicated(IBEP20 _lpToken) {
-        require(poolExistence[_lpToken] == false, "nonDuplicated: duplicated");
-        _;
-    }
-
     // Add a new lp to the pool. Can only be called by the owner.
-    function add(uint256 _allocPoint, IBEP20 _lpToken, uint16 _depositFeeBP, bool _withUpdate) public onlyOwner nonDuplicated(_lpToken) {
+    // XXX DO NOT add the same LP token more than once. Rewards will be messed up if you do.
+    function add(uint256 _allocPoint, IBEP20 _lpToken, uint16 _depositFeeBP, bool _withUpdate) public onlyOwner {
         require(_depositFeeBP <= 10000, "add: invalid deposit fee basis points");
         if (_withUpdate) {
             massUpdatePools();
         }
         uint256 lastRewardBlock = block.number > startBlock ? block.number : startBlock;
         totalAllocPoint = totalAllocPoint.add(_allocPoint);
-        poolExistence[_lpToken] = true;
         poolInfo.push(PoolInfo({
-        lpToken : _lpToken,
-        allocPoint : _allocPoint,
-        lastRewardBlock : lastRewardBlock,
-        accLyptusPerShare : 0,
-        depositFeeBP : _depositFeeBP
+            lpToken: _lpToken,
+            allocPoint: _allocPoint,
+            lastRewardBlock: lastRewardBlock,
+            accTarantulaPerShare: 0,
+            depositFeeBP: _depositFeeBP
         }));
     }
 
-    // Update the given pool's LYPTUS allocation point and deposit fee. Can only be called by the owner.
+    // Update the given pool's TAL allocation point and deposit fee. Can only be called by the owner.
     function set(uint256 _pid, uint256 _allocPoint, uint16 _depositFeeBP, bool _withUpdate) public onlyOwner {
         require(_depositFeeBP <= 10000, "set: invalid deposit fee basis points");
         if (_withUpdate) {
@@ -144,18 +134,18 @@ contract MasterChefV2 is Ownable, ReentrancyGuard {
         return _to.sub(_from).mul(BONUS_MULTIPLIER);
     }
 
-    // View function to see pending LYPTUSs on frontend.
-    function pendingLyptus(uint256 _pid, address _user) external view returns (uint256) {
+    // View function to see pending TALs on frontend.
+    function pendingTarantula(uint256 _pid, address _user) external view returns (uint256) {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
-        uint256 accLyptusPerShare = pool.accLyptusPerShare;
+        uint256 accTarantulaPerShare = pool.accTarantulaPerShare;
         uint256 lpSupply = pool.lpToken.balanceOf(address(this));
         if (block.number > pool.lastRewardBlock && lpSupply != 0) {
             uint256 multiplier = getMultiplier(pool.lastRewardBlock, block.number);
-            uint256 lyptusReward = multiplier.mul(lyptusPerBlock).mul(pool.allocPoint).div(totalAllocPoint);
-            accLyptusPerShare = accLyptusPerShare.add(lyptusReward.mul(1e12).div(lpSupply));
+            uint256 tarantulaReward = multiplier.mul(tarantulaPerBlock).mul(pool.allocPoint).div(totalAllocPoint);
+            accTarantulaPerShare = accTarantulaPerShare.add(tarantulaReward.mul(1e12).div(lpSupply));
         }
-        return user.amount.mul(accLyptusPerShare).div(1e12).sub(user.rewardDebt);
+        return user.amount.mul(accTarantulaPerShare).div(1e12).sub(user.rewardDebt);
     }
 
     // Update reward variables for all pools. Be careful of gas spending!
@@ -178,58 +168,58 @@ contract MasterChefV2 is Ownable, ReentrancyGuard {
             return;
         }
         uint256 multiplier = getMultiplier(pool.lastRewardBlock, block.number);
-        uint256 lyptusReward = multiplier.mul(lyptusPerBlock).mul(pool.allocPoint).div(totalAllocPoint);
-        lyptus.mint(devaddr, lyptusReward.div(10));
-        lyptus.mint(address(this), lyptusReward);
-        pool.accLyptusPerShare = pool.accLyptusPerShare.add(lyptusReward.mul(1e12).div(lpSupply));
+        uint256 tarantulaReward = multiplier.mul(tarantulaPerBlock).mul(pool.allocPoint).div(totalAllocPoint);
+        tarantula.mint(devaddr, tarantulaReward.div(10));
+        tarantula.mint(address(this), tarantulaReward);
+        pool.accTarantulaPerShare = pool.accTarantulaPerShare.add(tarantulaReward.mul(1e12).div(lpSupply));
         pool.lastRewardBlock = block.number;
     }
 
-    // Deposit LP tokens to MasterChef for EGG allocation.
-    function deposit(uint256 _pid, uint256 _amount) public nonReentrant {
+    // Deposit LP tokens to MasterChef for TAL allocation.
+    function deposit(uint256 _pid, uint256 _amount) public {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         updatePool(_pid);
         if (user.amount > 0) {
-            uint256 pending = user.amount.mul(pool.accLyptusPerShare).div(1e12).sub(user.rewardDebt);
-            if (pending > 0) {
-                safeLyptusTransfer(msg.sender, pending);
+            uint256 pending = user.amount.mul(pool.accTarantulaPerShare).div(1e12).sub(user.rewardDebt);
+            if(pending > 0) {
+                safetarantulaTransfer(msg.sender, pending);
             }
         }
-        if (_amount > 0) {
+        if(_amount > 0) {
             pool.lpToken.safeTransferFrom(address(msg.sender), address(this), _amount);
-            if (pool.depositFeeBP > 0) {
+            if(pool.depositFeeBP > 0){
                 uint256 depositFee = _amount.mul(pool.depositFeeBP).div(10000);
                 pool.lpToken.safeTransfer(feeAddress, depositFee);
                 user.amount = user.amount.add(_amount).sub(depositFee);
-            } else {
+            }else{
                 user.amount = user.amount.add(_amount);
             }
         }
-        user.rewardDebt = user.amount.mul(pool.accLyptusPerShare).div(1e12);
+        user.rewardDebt = user.amount.mul(pool.accTarantulaPerShare).div(1e12);
         emit Deposit(msg.sender, _pid, _amount);
     }
 
     // Withdraw LP tokens from MasterChef.
-    function withdraw(uint256 _pid, uint256 _amount) public nonReentrant {
+    function withdraw(uint256 _pid, uint256 _amount) public {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         require(user.amount >= _amount, "withdraw: not good");
         updatePool(_pid);
-        uint256 pending = user.amount.mul(pool.accLyptusPerShare).div(1e12).sub(user.rewardDebt);
-        if (pending > 0) {
-            safeLyptusTransfer(msg.sender, pending);
+        uint256 pending = user.amount.mul(pool.accTarantulaPerShare).div(1e12).sub(user.rewardDebt);
+        if(pending > 0) {
+            safetarantulaTransfer(msg.sender, pending);
         }
-        if (pending > 0) {
+        if(_amount > 0) {
             user.amount = user.amount.sub(_amount);
             pool.lpToken.safeTransfer(address(msg.sender), _amount);
         }
-        user.rewardDebt = user.amount.mul(pool.accLyptusPerShare).div(1e12);
+        user.rewardDebt = user.amount.mul(pool.accTarantulaPerShare).div(1e12);
         emit Withdraw(msg.sender, _pid, _amount);
     }
 
     // Withdraw without caring about rewards. EMERGENCY ONLY.
-    function emergencyWithdraw(uint256 _pid) public nonReentrant {
+    function emergencyWithdraw(uint256 _pid) public {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         uint256 amount = user.amount;
@@ -239,35 +229,30 @@ contract MasterChefV2 is Ownable, ReentrancyGuard {
         emit EmergencyWithdraw(msg.sender, _pid, amount);
     }
 
-    // Safe lyptus transfer function, just in case if rounding error causes pool to not have enough LYPTUSs.
-    function safeLyptusTransfer(address _to, uint256 _amount) internal {
-        uint256 lyptusBal = lyptus.balanceOf(address(this));
-        bool transferSuccess = false;
-        if (_amount > lyptusBal) {
-            transferSuccess = lyptus.transfer(_to, lyptusBal);
+    // Safe tarantula transfer function, just in case if rounding error causes pool to not have enough TALs.
+    function safetarantulaTransfer(address _to, uint256 _amount) internal {
+        uint256 tarantulaBal = tarantula.balanceOf(address(this));
+        if (_amount > tarantulaBal) {
+            tarantula.transfer(_to, tarantulaBal);
         } else {
-            transferSuccess = lyptus.transfer(_to, _amount);
+            tarantula.transfer(_to, _amount);
         }
-        require(transferSuccess, "safeEggTransfer: transfer failed");
     }
 
     // Update dev address by the previous dev.
     function dev(address _devaddr) public {
         require(msg.sender == devaddr, "dev: wut?");
         devaddr = _devaddr;
-        emit SetDevAddress(msg.sender, _devaddr);
     }
 
-    function setFeeAddress(address _feeAddress) public {
+    function setFeeAddress(address _feeAddress) public{
         require(msg.sender == feeAddress, "setFeeAddress: FORBIDDEN");
         feeAddress = _feeAddress;
-        emit SetFeeAddress(msg.sender, _feeAddress);
     }
 
     //Pancake has to add hidden dummy pools inorder to alter the emission, here we make it simple and transparent to all.
-    function updateEmissionRate(uint256 _lyptusPerBlock) public onlyOwner {
+    function updateEmissionRate(uint256 _tarantulaPerBlock) public onlyOwner {
         massUpdatePools();
-        lyptusPerBlock = _lyptusPerBlock;
-		emit UpdateEmissionRate(msg.sender, _lyptusPerBlock);
+        tarantulaPerBlock = _tarantulaPerBlock;
     }
 }
